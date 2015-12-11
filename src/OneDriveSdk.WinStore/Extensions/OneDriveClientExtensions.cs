@@ -20,10 +20,98 @@
 //  THE SOFTWARE.
 // ------------------------------------------------------------------------------
 
-namespace Microsoft.OneDrive.Sdk.WinStore
+namespace Microsoft.OneDrive.Sdk
 {
+    using System.Threading.Tasks;
+
     public static class OneDriveClientExtensions
     {
+        /// <summary>
+        /// Creates an authenticated client that uses the OnlineIdAuthenticator API for authentication.
+        /// </summary>
+        /// <param name="scopes">The requested scopes for Microsoft account authentication.</param>
+        /// <param name="httpProvider">The <see cref="IHttpProvider"/> for sending HTTP requests.</param>
+        /// <returns>The <see cref="IOneDriveClient"/> for the session.</returns>
+        public static async Task<IOneDriveClient> GetAuthenticatedClientUsingOnlineIdAuthenticator(
+            string[] scopes,
+            IHttpProvider httpProvider = null)
+        {
+            var client = OneDriveClientExtensions.GetClientUsingOnlineIdAuthenticator(
+                scopes,
+                httpProvider: httpProvider);
+
+            await client.AuthenticateAsync();
+
+            return client;
+        }
+
+        /// <summary>
+        /// Creates an authenticated client that uses the WebAuthenticationBroker API in SSO mode for authentication.
+        /// </summary>
+        /// <param name="appId">The application ID for Microsoft account authentication.</param>
+        /// <param name="scopes">The requested scopes for Microsoft account authentication.</param>
+        /// <param name="httpProvider">The <see cref="IHttpProvider"/> for sending HTTP requests.</param>
+        /// <returns>The <see cref="IOneDriveClient"/> for the session.</returns>
+        public static Task<IOneDriveClient> GetAuthenticatedClientUsingWebAuthenticationBroker(
+            string appId,
+            string[] scopes,
+            IHttpProvider httpProvider = null)
+        {
+            return OneDriveClientExtensions.GetAuthenticatedClientUsingWebAuthenticationBroker(
+                appId,
+                /* returnUrl */ null,
+                scopes,
+                httpProvider);
+        }
+
+        /// <summary>
+        /// Creates an authenticated client that uses the WebAuthenticationBroker API in non-SSO mode for authentication.
+        /// </summary>
+        /// <param name="appId">The application ID for Microsoft account authentication.</param>
+        /// <param name="returnUrl">The application return URL for Microsoft account authentication.</param>
+        /// <param name="scopes">The requested scopes for Microsoft account authentication.</param>
+        /// <param name="httpProvider">The <see cref="IHttpProvider"/> for sending HTTP requests.</param>
+        /// <returns>The <see cref="IOneDriveClient"/> for the session.</returns>
+        public static async Task<IOneDriveClient> GetAuthenticatedClientUsingWebAuthenticationBroker(
+            string appId,
+            string returnUrl,
+            string[] scopes,
+            IHttpProvider httpProvider = null)
+        {
+            var client = OneDriveClientExtensions.GetClientUsingWebAuthenticationBroker(
+                appId,
+                returnUrl,
+                scopes,
+                httpProvider);
+
+            await client.AuthenticateAsync();
+
+            return client;
+        }
+
+        /// <summary>
+        /// Creates an authenticated client for use in Store apps that uses the OnlineIdAuthenticator API for authentication.
+        /// </summary>
+        /// <param name="appId">The application ID for Microsoft account authentication.</param>
+        /// <param name="scopes">The requested scopes for Microsoft account authentication.</param>
+        /// <param name="httpProvider">The <see cref="IHttpProvider"/> for sending HTTP requests.</param>
+        /// <returns>The <see cref="IOneDriveClient"/> for the session.</returns>
+        public static async Task<IOneDriveClient> GetAuthenticatedUniversalClient(
+            string[] scopes,
+            string returnUrl = null,
+            IHttpProvider httpProvider = null)
+        {
+            var client = OneDriveClientExtensions.GetClientUsingOnlineIdAuthenticator(scopes, returnUrl, httpProvider);
+            await client.AuthenticateAsync();
+            return client;
+        }
+
+        /// <summary>
+        /// Creates an unauthenticated client that uses the OnlineIdAuthenticator API for authentication.
+        /// </summary>
+        /// <param name="scopes">The requested scopes for Microsoft account authentication.</param>
+        /// <param name="httpProvider">The <see cref="IHttpProvider"/> for sending HTTP requests.</param>
+        /// <returns>The <see cref="IOneDriveClient"/> for the session.</returns>
         public static IOneDriveClient GetClientUsingOnlineIdAuthenticator(
             string[] scopes,
             string returnUrl = null,
@@ -31,24 +119,57 @@ namespace Microsoft.OneDrive.Sdk.WinStore
         {
             return new OneDriveClient(
                 new AppConfig { MicrosoftAccountScopes = scopes },
-                /* credentialCache */ null,
-                httpProvider ?? new HttpProvider(new Serializer()),
-                new OnlineIdServiceInfoProvider());
+                httpProvider: httpProvider ?? new HttpProvider(),
+                serviceInfoProvider: new OnlineIdServiceInfoProvider());
         }
 
+        /// <summary>
+        /// Creates an unauthenticated client that uses the WebAuthenticationBroker API in SSO mode for authentication.
+        /// </summary>
+        /// <param name="appId">The application ID for Microsoft account authentication.</param>
+        /// <param name="scopes">The requested scopes for Microsoft account authentication.</param>
+        /// <param name="httpProvider">The <see cref="IHttpProvider"/> for sending HTTP requests.</param>
+        /// <returns>The <see cref="IOneDriveClient"/> for the session.</returns>
         public static IOneDriveClient GetClientUsingWebAuthenticationBroker(
             string appId,
             string[] scopes,
-            string returnUrl = null,
+            IHttpProvider httpProvider = null)
+        {
+            return OneDriveClientExtensions.GetClientUsingWebAuthenticationBroker(appId, /* returnUrl */ null, scopes, httpProvider);
+        }
+
+        /// <summary>
+        /// Creates an unauthenticated client that uses the WebAuthenticationBroker API in non-SSO mode for authentication.
+        /// </summary>
+        /// <param name="appId">The application ID for Microsoft account authentication.</param>
+        /// <param name="returnUrl">The application return URL for Microsoft account authentication.</param>
+        /// <param name="scopes">The requested scopes for Microsoft account authentication.</param>
+        /// <param name="httpProvider">The <see cref="IHttpProvider"/> for sending HTTP requests.</param>
+        /// <returns>The <see cref="IOneDriveClient"/> for the session.</returns>
+        public static IOneDriveClient GetClientUsingWebAuthenticationBroker(
+            string appId,
+            string returnUrl,
+            string[] scopes,
             IHttpProvider httpProvider = null)
         {
             return new OneDriveClient(
-                new AppConfig { MicrosoftAccountScopes = scopes },
-                /* credentialCache */ null,
-                httpProvider ?? new HttpProvider(new Serializer()),
-                new WebAuthenticationBrokerServiceInfoProvider());
+                new AppConfig
+                {
+                    MicrosoftAccountAppId = appId,
+                    MicrosoftAccountReturnUrl = returnUrl,
+                    MicrosoftAccountScopes = scopes
+                },
+                httpProvider: httpProvider ?? new HttpProvider(),
+                serviceInfoProvider: new WebAuthenticationBrokerServiceInfoProvider());
         }
 
+        /// <summary>
+        /// Creates an unauthenticated client for use in Store apps that uses the OnlineIdAuthenticator API for authentication.
+        /// </summary>
+        /// <param name="appId">The application ID for Microsoft account authentication.</param>
+        /// <param name="scopes">The requested scopes for Microsoft account authentication.</param>
+        /// <param name="httpProvider">The <see cref="IHttpProvider"/> for sending HTTP requests.</param>
+        /// <returns>The <see cref="IOneDriveClient"/> for the session.</returns>
         public static IOneDriveClient GetUniversalClient(
             string[] scopes,
             string returnUrl = null,

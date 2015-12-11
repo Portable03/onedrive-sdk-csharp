@@ -52,13 +52,16 @@ namespace Microsoft.OneDrive.Sdk
         /// <returns>The task to await.</returns>
         public virtual async Task AppendAuthHeaderAsync(HttpRequestMessage request)
         {
-            if (this.CurrentAccountSession == null)
+            if (this.CurrentAccountSession == null || string.IsNullOrEmpty(this.CurrentAccountSession.AccessToken))
             {
                 await this.AuthenticateAsync();
             }
 
             if (this.CurrentAccountSession != null && !string.IsNullOrEmpty(this.CurrentAccountSession.AccessToken))
             {
+                var tokenTypeString = string.IsNullOrEmpty(this.CurrentAccountSession.AccessTokenType)
+                    ? Constants.Headers.Bearer
+                    : this.CurrentAccountSession.AccessTokenType;
                 request.Headers.Authorization = new AuthenticationHeaderValue(Constants.Headers.Bearer, this.CurrentAccountSession.AccessToken);
             }
         }
@@ -93,10 +96,17 @@ namespace Microsoft.OneDrive.Sdk
 
             authResult = await this.GetAuthenticationResultAsync();
 
-            if (authResult != null)
+            if (authResult == null || string.IsNullOrEmpty(authResult.AccessToken))
             {
-                this.CacheAuthResult(authResult);
+                throw new OneDriveException(
+                    new Error
+                    {
+                        Code = OneDriveErrorCode.AuthenticationFailure.ToString(),
+                        Message = "Failed to retrieve a valid authentication token for the user."
+                    });
             }
+
+            this.CacheAuthResult(authResult);
 
             return authResult;
         }

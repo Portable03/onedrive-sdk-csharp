@@ -20,12 +20,12 @@
 //  THE SOFTWARE.
 // ------------------------------------------------------------------------------
 
-namespace Microsoft.OneDrive.Sdk.WinStore
+namespace Microsoft.OneDrive.Sdk
 {
     using System;
-    using System.Net;
     using System.Text;
     using System.Threading.Tasks;
+    using Windows.Security.Authentication.Web;
 
     public class WebAuthenticationBrokerAuthenticationProvider : AuthenticationProvider
     {
@@ -39,15 +39,20 @@ namespace Microsoft.OneDrive.Sdk.WinStore
         /// </summary>
         public override async Task SignOutAsync()
         {
+            var returnUrlForRequest = string.IsNullOrEmpty(this.ServiceInfo.ReturnUrl)
+                ? WebAuthenticationBroker.GetCurrentApplicationCallbackUri().ToString()
+                : this.ServiceInfo.ReturnUrl;
+
             var requestUriStringBuilder = new StringBuilder();
             requestUriStringBuilder.Append(this.ServiceInfo.SignOutUrl);
-            requestUriStringBuilder.AppendFormat("{0}={1}", Constants.Authentication.RedirectUriKeyName, this.ServiceInfo.ReturnUrl);
+            requestUriStringBuilder.AppendFormat("?{0}={1}", Constants.Authentication.RedirectUriKeyName, returnUrlForRequest);
             requestUriStringBuilder.AppendFormat("&{0}={1}", Constants.Authentication.ClientIdKeyName, this.ServiceInfo.AppId);
-
-            // Don't pass the callbackUri to AuthenticateAsync so we invoke the SSO authentication flow.
+            
             await this.ServiceInfo.WebAuthenticationUi.AuthenticateAsync(
                 new Uri(requestUriStringBuilder.ToString()),
-                /* callbackUri */ null);
+                string.IsNullOrEmpty(this.ServiceInfo.ReturnUrl)
+                    ? null
+                    : new Uri(this.ServiceInfo.ReturnUrl));
 
             this.DeleteUserCredentialsFromCache(this.CurrentAccountSession);
             this.CurrentAccountSession = null;
@@ -60,17 +65,25 @@ namespace Microsoft.OneDrive.Sdk.WinStore
 
         internal async Task<AccountSession> GetAccountSessionAsync()
         {
+            var returnUrlForRequest = string.IsNullOrEmpty(this.ServiceInfo.ReturnUrl)
+                ? WebAuthenticationBroker.GetCurrentApplicationCallbackUri().ToString()
+                : this.ServiceInfo.ReturnUrl;
+
             var requestUriStringBuilder = new StringBuilder();
             requestUriStringBuilder.Append(this.ServiceInfo.AuthenticationServiceUrl);
-            requestUriStringBuilder.AppendFormat("{0}={1}", Constants.Authentication.RedirectUriKeyName, this.ServiceInfo.ReturnUrl);
+            requestUriStringBuilder.AppendFormat("?{0}={1}", Constants.Authentication.RedirectUriKeyName, returnUrlForRequest);
             requestUriStringBuilder.AppendFormat("&{0}={1}", Constants.Authentication.ClientIdKeyName, this.ServiceInfo.AppId);
             requestUriStringBuilder.AppendFormat("&{0}={1}", Constants.Authentication.ScopeKeyName, string.Join("%20", this.ServiceInfo.Scopes));
             requestUriStringBuilder.AppendFormat("&{0}={1}", Constants.Authentication.ResponseTypeKeyName, Constants.Authentication.TokenResponseTypeValueName);
 
             var requestUri = new Uri(requestUriStringBuilder.ToString());
 
-            // Don't pass the callbackUri to AuthenticateAsync so we invoke the SSO authentication flow.
-            var authenticationResponseValues = await this.ServiceInfo.WebAuthenticationUi.AuthenticateAsync(requestUri, /* callbackUri */ null);
+            var authenticationResponseValues = await this.ServiceInfo.WebAuthenticationUi.AuthenticateAsync(
+                requestUri,
+                string.IsNullOrEmpty(this.ServiceInfo.ReturnUrl)
+                    ? null
+                    : new Uri(this.ServiceInfo.ReturnUrl));
+
             OAuthErrorHandler.ThrowIfError(authenticationResponseValues);
 
             return new AccountSession(authenticationResponseValues, this.ServiceInfo.AppId, AccountType.MicrosoftAccount) { CanSignOut = true };
